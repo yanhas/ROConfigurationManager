@@ -7,32 +7,93 @@
 //
 
 #import "ROConfigurationManger.h"
+#import "TMDiskCache.h"
 
-static NSDictionary<NSString *, NSString *> *responseObject;
-const NSString * _Nonnull serverEndPoint  = @"http://localhost:3004/people";
+//Here to save time so we won't fetch from cache every time
+static NSMutableDictionary<NSString *, NSString *> *responseObject;
+const int timeInterval = 5;
+
+@interface ROConfigurationManager()
+
+@property (nonatomic, strong) NSString *endPoint;
+@property (nonatomic, strong) TMDiskCache *cache;
+@property (nonatomic, strong) NSMutableDictionary *appValues;
+
+@end
 
 @implementation ROConfigurationManager
 
--(instancetype)init {
+
+#pragma mark -
+#pragma mark LifeCycle methods
+
+-(instancetype)initWithEndPoint:(NSString *)endPoint {
     self = [super init];
     if (!self) {
         return nil;
     }
     
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:serverEndPoint]
-                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                       timeoutInterval:5];
-    request.HTTPMethod = @"GET";
+    if (!endPoint) {
+        return nil;
+    }
     
-    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+    self.endPoint = endPoint;
+    self.cache = [TMDiskCache sharedCache];
+    self.appValues = [NSMutableDictionary new];
+    
+    [self getResponseFromServerNonBlockingApp:endPoint];
+    
+    return self;
+}
+
+
+#pragma mark -
+#pragma mark APIs
+
+-(id)ro_valueForKey:(NSString *)key {
+    if (!self.appValues[key]) {
+        @synchronized (responseObject) {
+            if (!responseObject) {
+                //Check if we have anything in cache
+                if (![self.cache objectForKey:@"response"]) {
+                    //Block app and get response from server
+                    [self getResponseFromServerBlockingApp:self.endPoint];
+                } else {
+                    //If we have something in cache, save it
+                    @synchronized (responseObject) {
+                        responseObject = (NSMutableDictionary *)[self.cache objectForKey:@"response"];
+                    }
+                }
+            }
+            
+            if (responseObject[key]) {
+                [self.appValues setObject:responseObject[key] forKey:key];
+            }
+        }
+    }
+    
+    return [self.appValues objectForKey:key];
+}
+
+-(void)refetchResponseFromServer {
+    [self getResponseFromServerNonBlockingApp:self.endPoint];
+}
+
+
+#pragma mark -
+#pragma mark Internals
+-(void)getResponseFromServerNonBlockingApp:(NSString *)endPoint {
+    
+    NSMutableURLRequest *request = [self createRequest:endPoint];
+    
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
+                                                          delegate:nil
+                                                     delegateQueue:nil];
     
     NSURLSessionDataTask *dt = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable responseData, NSURLResponse * _Nullable response, NSError * _Nullable error) {
         
-        NSHTTPURLResponse *urlResponse = (NSHTTPURLResponse *)response;
-        
-        // we don't want to assume a decode error if perhaps there is no data
-        if (!responseData) {
-            return ;
+        if (!responseData || error) {
+            return;
         }
         
         NSError *err = nil;
@@ -40,26 +101,61 @@ const NSString * _Nonnull serverEndPoint  = @"http://localhost:3004/people";
         
         if (err != nil) {
             NSLog(@"Error parsing JSON.");
-        }
-        else {
-            responseObject = jsonArray;
-            NSLog(@"Array: %@", jsonArray);
+        } else {
+            @synchronized (responseObject) {
+                responseObject = [jsonArray copy];
+                [self.cache setObject:responseObject forKey:@"response"];
+            }
         }
     }];
     
     [dt resume];
-    
-    return self;
 }
 
--(id)ro_valueForKey:(NSString *)key {
-    if (!responseObject) {
-        dispatch_async(dispatch_get_global_queue(0, 0), ^{
-            
-        });
-    }
+-(void)getResponseFromServerBlockingApp:(NSString *)endPoint {
+    dispatch_group_t group = dispatch_group_create();
+    dispatch_group_enter(group);
     
-    return responseObject[key];
+    
+    NSMutableURLRequest *request = [self createRequest:endPoint];
+    
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
+                                                          delegate:nil
+                                                     delegateQueue:nil];
+    
+    NSURLSessionDataTask *dt = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable responseData, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        
+        if (!responseData || error) {
+            dispatch_group_leave(group);
+            return;
+        }
+        
+        NSError *err = nil;
+        NSDictionary *jsonArray = [NSJSONSerialization JSONObjectWithData:responseData options:0 error:&err];
+        
+        if (err != nil) {
+            NSLog(@"Error parsing JSON.");
+        } else {
+            @synchronized (responseObject) {
+                responseObject = [jsonArray copy];
+                [self.cache setObject:responseObject forKey:@"response"];
+            }
+        }
+        
+        dispatch_group_leave(group);
+    }];
+    
+    [dt resume];
+    
+    dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
+}
+
+-(NSMutableURLRequest *)createRequest:(NSString *)endPoint {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:endPoint]
+                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                       timeoutInterval:timeInterval];
+    request.HTTPMethod = @"GET";
+    return request;
 }
 
 @end
