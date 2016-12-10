@@ -1,19 +1,18 @@
 //
-//  ROConfigurationManager.h
+//  ROConfigurationManger.h
 //  ROConfigurationManager
 //
 //  Created by Yaniv on 12/10/16.
 //  Copyright © 2016 Yaniv. All rights reserved.
 //
 
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
-//! Project version number for ROConfigurationManager.
-FOUNDATION_EXPORT double ROConfigurationManagerVersionNumber;
+@interface ROConfigurationManager : NSObject
 
-//! Project version string for ROConfigurationManager.
-FOUNDATION_EXPORT const unsigned char ROConfigurationManagerVersionString[];
+-(instancetype)initWithEndPoint:(NSString *)endPoint;
 
-// In this header, you should import all the public headers of your framework using statements like #import <ROConfigurationManager/PublicHeader.h>
+-(id)ro_valueForKey:(NSString *)key;
+-(void)refetchResponseFromServer;
 
-
+@end

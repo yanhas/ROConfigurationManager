@@ -6,7 +6,7 @@
 //  Copyright © 2016 Yaniv. All rights reserved.
 //
 
-#import "ROConfigurationManger.h"
+#import "ROConfigurationManager.h"
 #import "TMDiskCache.h"
 
 //Here to save time so we won't fetch from cache every time
@@ -26,6 +26,10 @@ const int timeInterval = 5;
 
 #pragma mark -
 #pragma mark LifeCycle methods
+
+-(NSString *)description {
+    return [NSString stringWithFormat:@"Configuration:\nendpoint = %@\ncache = %@\nappValues = %@\ro = %@", self.endPoint, self.cache, self.appValues, responseObject];
+}
 
 -(instancetype)initWithEndPoint:(NSString *)endPoint {
     self = [super init];
