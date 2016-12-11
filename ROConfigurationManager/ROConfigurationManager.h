@@ -10,9 +10,10 @@
 
 @interface ROConfigurationManager : NSObject
 
--(instancetype)initWithEndPoint:(NSString *)endPoint;
++(instancetype)configurationManager;
+-(void)setEndpoint:(NSString *)endPoint;
 
 -(id)ro_valueForKey:(NSString *)key;
--(void)refetchResponseFromServer;
+-(void)ro_refetchResponseFromServer;
 
 @end

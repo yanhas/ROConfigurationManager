@@ -13,6 +13,10 @@
 static NSMutableDictionary<NSString *, NSString *> *responseObject;
 const int timeInterval = 5;
 
+//Error handling
+typedef void(^ErrorBlock)(void);
+typedef void(^SuccessBlock)(void);
+
 @interface ROConfigurationManager()
 
 @property (nonatomic, strong) NSString *endPoint;
@@ -26,9 +30,22 @@ const int timeInterval = 5;
 
 #pragma mark -
 #pragma mark LifeCycle methods
-
+static ROConfigurationManager *cm = nil;
 -(NSString *)description {
     return [NSString stringWithFormat:@"Configuration:\nendpoint = %@\ncache = %@\nappValues = %@\ro = %@", self.endPoint, self.cache, self.appValues, responseObject];
+}
+
++(instancetype)configurationManager {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cm = [[ROConfigurationManager alloc] initWithEndPoint:@"http://localhost:3004/people"];
+    });
+    
+    return cm;
+}
+
+-(void)setEndpoint:(NSString *)endPoint {
+    cm = [[ROConfigurationManager configurationManager] initWithEndPoint:endPoint];
 }
 
 -(instancetype)initWithEndPoint:(NSString *)endPoint {
@@ -56,30 +73,40 @@ const int timeInterval = 5;
 
 -(id)ro_valueForKey:(NSString *)key {
     if (!self.appValues[key]) {
-        @synchronized (responseObject) {
-            if (!responseObject) {
-                //Check if we have anything in cache
-                if (![self.cache objectForKey:@"response"]) {
-                    //Block app and get response from server
-                    [self getResponseFromServerBlockingApp:self.endPoint];
-                } else {
-                    //If we have something in cache, save it
-                    @synchronized (responseObject) {
-                        responseObject = (NSMutableDictionary *)[self.cache objectForKey:@"response"];
-                    }
+        //Check if we do not have something in cache
+        if (![self.cache objectForKey:@"response"]) {
+            [self getResponseFromServerBlockingApp:self.endPoint
+                                        errorBlock:^{
+                                            @synchronized (responseObject) {
+                                                responseObject = (NSMutableDictionary *)[self.cache objectForKey:@"response"];
+                                                if (responseObject[key]) {
+                                                    [self.appValues setObject:responseObject[key] forKey:key];
+                                                }
+                                            }
+                                        }
+                                      successBlock:^{
+                                          @synchronized (responseObject) {
+                                              if (responseObject[key]) {
+                                                  [self.appValues setObject:responseObject[key] forKey:key];
+                                              }
+                                          }
+                                      }];
+        } else {
+            //We have something in cache, use that
+            @synchronized (responseObject) {
+                responseObject = (NSMutableDictionary *)[self.cache objectForKey:@"response"];
+                if (responseObject[key]) {
+                    [self.appValues setObject:responseObject[key] forKey:key];
                 }
             }
-            
-            if (responseObject[key]) {
-                [self.appValues setObject:responseObject[key] forKey:key];
-            }
+                
         }
     }
     
     return [self.appValues objectForKey:key];
 }
 
--(void)refetchResponseFromServer {
+-(void)ro_refetchResponseFromServer {
     [self getResponseFromServerNonBlockingApp:self.endPoint];
 }
 
@@ -116,7 +143,9 @@ const int timeInterval = 5;
     [dt resume];
 }
 
--(void)getResponseFromServerBlockingApp:(NSString *)endPoint {
+-(void)getResponseFromServerBlockingApp:(NSString *)endPoint
+                             errorBlock:(ErrorBlock)errorBlock
+                           successBlock:(SuccessBlock)successBlock {
     dispatch_group_t group = dispatch_group_create();
     dispatch_group_enter(group);
     
@@ -130,6 +159,7 @@ const int timeInterval = 5;
     NSURLSessionDataTask *dt = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable responseData, NSURLResponse * _Nullable response, NSError * _Nullable error) {
         
         if (!responseData || error) {
+            errorBlock();
             dispatch_group_leave(group);
             return;
         }
@@ -139,10 +169,12 @@ const int timeInterval = 5;
         
         if (err != nil) {
             NSLog(@"Error parsing JSON.");
+            errorBlock();
         } else {
             @synchronized (responseObject) {
                 responseObject = [jsonArray copy];
                 [self.cache setObject:responseObject forKey:@"response"];
+                successBlock();
             }
         }
         
