@@ -10,7 +10,7 @@
 ```
 - Run the following commands on your **ViewController.viewDidLoad()**
 ```
-[[ROConfigurationManager configurationManager] setEndPoint:@"YourServerEndPoint"]
+[[ROConfigurationManager configurationManager] setEndpoint:@"YourServerEndPoint"]
 ``` 
  
 
