@@ -5,7 +5,7 @@
 - clone this repo inside your app project
 - Run the following commands on your **ViewController.viewDidLoad()**
 ```
-[[ROConfigurationManager alloc] initWithEndPoint:@"YourServerEndPoint"]
+[[ROConfigurationManager configurationManager] setEndPoint:@"YourServerEndPoint"]
 ``` 
  
 
@@ -22,7 +22,7 @@ returns the requested, by key, value from configuration
 **return** - The value of the key
 
  ```
- -(void)refetchResponseFromServer;
+ -(void)ro_refetchResponseFromServer;
  ```
 refetch the configuration file and cache it.
 
