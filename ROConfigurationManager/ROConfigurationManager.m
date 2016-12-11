@@ -77,12 +77,7 @@ static ROConfigurationManager *cm = nil;
         if (![self.cache objectForKey:@"response"]) {
             [self getResponseFromServerBlockingApp:self.endPoint
                                         errorBlock:^{
-                                            @synchronized (responseObject) {
-                                                responseObject = (NSMutableDictionary *)[self.cache objectForKey:@"response"];
-                                                if (responseObject[key]) {
-                                                    [self.appValues setObject:responseObject[key] forKey:key];
-                                                }
-                                            }
+                                            //not doing anything, meaning the self.appValues[key] will stay nil
                                         }
                                       successBlock:^{
                                           @synchronized (responseObject) {
@@ -103,7 +98,7 @@ static ROConfigurationManager *cm = nil;
         }
     }
     
-    return [self.appValues objectForKey:key];
+    return self.appValues[key];
 }
 
 -(void)ro_refetchResponseFromServer {
