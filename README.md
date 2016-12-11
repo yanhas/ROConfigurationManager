@@ -3,6 +3,11 @@
 ## Instructions:
 
 - clone this repo inside your app project
+
+- In your **viewController.m**:
+```
+#import "ROConfigurationManager.h"
+```
 - Run the following commands on your **ViewController.viewDidLoad()**
 ```
 [[ROConfigurationManager configurationManager] setEndPoint:@"YourServerEndPoint"]
@@ -25,8 +30,6 @@ returns the requested, by key, value from configuration
  -(void)ro_refetchResponseFromServer;
  ```
 refetch the configuration file and cache it.
-
-**NOTE: No changes will be effected on values of keys that were already called by the app**
 
 
  
