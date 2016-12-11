@@ -26,5 +26,7 @@ returns the requested, by key, value from configuration
  ```
 refetch the configuration file and cache it.
 
+**NOTE: No changes will be effected on values of keys that were already called by the app**
+
 
  
