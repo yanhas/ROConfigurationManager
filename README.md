@@ -3,6 +3,7 @@
 ## Instructions:
 
 - clone this repo inside your app project
+- copy it to your project tree on XCode
 
 - In your **viewController.m**:
 ```
